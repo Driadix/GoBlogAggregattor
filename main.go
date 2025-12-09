@@ -122,6 +122,55 @@ func handlerAgg(_ *state, _ command) error {
 	return nil
 }
 
+func handlerAddFeed(s *state, cmd command) error {
+	if len(cmd.args) < 2 {
+		return fmt.Errorf("the addfeed command expects two arguments: <name> <url>")
+	}
+
+	feedName := cmd.args[0]
+	feedURL := cmd.args[1]
+
+	currentUser, err := s.db.GetUser(context.Background(), s.cfg.CurrentUserName)
+	if err != nil {
+		return fmt.Errorf("cant get a current user: %w", err)
+	}
+
+	newFeed, err := s.db.CreateFeed(context.Background(), database.CreateFeedParams{
+		ID:        uuid.New(),
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Name:      feedName,
+		Url:       feedURL,
+		UserID:    currentUser.ID,
+	})
+	if err != nil {
+		return fmt.Errorf("cannot create a new feed: %w", err)
+	}
+
+	fmt.Println(newFeed)
+	return nil
+}
+
+func handlerFeeds(s *state, cmd command) error {
+	feeds, err := s.db.ListFeeds(context.Background())
+	if err != nil {
+		return fmt.Errorf("error fetching feeds: %w", err)
+	}
+
+	if len(feeds) == 0 {
+		fmt.Println("No feeds found.")
+		return nil
+	}
+
+	for _, feed := range feeds {
+		fmt.Printf("* %s\n", feed.Name)
+		fmt.Printf("  URL: %s\n", feed.Url)
+		fmt.Printf("  User: %s\n", feed.UserName)
+	}
+
+	return nil
+}
+
 type RSSFeed struct {
 	Channel struct {
 		Title       string    `xml:"title"`
@@ -203,6 +252,8 @@ func main() {
 	cmds.register("reset", handlerReset)
 	cmds.register("users", handlerUsers)
 	cmds.register("agg", handlerAgg)
+	cmds.register("addfeed", handlerAddFeed)
+	cmds.register("feeds", handlerFeeds)
 
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: cli <command> [args...]")
