@@ -46,7 +46,6 @@ func handlerRegister(s *state, cmd command) error {
 
 	newName := cmd.args[0]
 
-	// 1. Create User in DB
 	newUser, err := s.db.CreateUser(context.Background(), database.CreateUserParams{
 		ID:        uuid.New(),
 		CreatedAt: time.Now(),
@@ -57,8 +56,6 @@ func handlerRegister(s *state, cmd command) error {
 		return fmt.Errorf("error while creating a new user: %w", err)
 	}
 
-	// 2. FIX: Persist to config file!
-	// Just setting s.cfg.CurrentUserName = newName is strictly in-memory.
 	if err := s.cfg.SetUser(newName); err != nil {
 		return fmt.Errorf("failed to set user in config: %w", err)
 	}
@@ -74,19 +71,41 @@ func handlerLogin(s *state, cmd command) error {
 
 	user := cmd.args[0]
 
-	// 1. Verify user exists in DB
 	_, err := s.db.GetUser(context.Background(), user)
 	if err != nil {
 		return fmt.Errorf("no user found: %w", err)
 	}
 
-	// 2. FIX: Actually set the user in the config!
-	// You removed this line, but it is required for 'login' to work.
 	if err := s.cfg.SetUser(user); err != nil {
 		return fmt.Errorf("failed to set user in config: %w", err)
 	}
 
 	fmt.Printf("User set to: %s\n", user)
+	return nil
+}
+
+func handlerReset(s *state, _ command) error {
+	err := s.db.ResetUsers(context.Background())
+	if err != nil {
+		return fmt.Errorf("an error occured while trying to reset users: %w", err)
+	}
+
+	fmt.Printf("users were successfully reseted")
+	return nil
+}
+
+func handlerUsers(s *state, _ command) error {
+	users, err := s.db.GetUsers(context.Background())
+	if err != nil {
+		return fmt.Errorf("can't load users from database: %w", err)
+	}
+
+	for _, user := range users {
+		if user.Name == s.cfg.CurrentUserName {
+			fmt.Println(user.Name + " (current)")
+		}
+		fmt.Println(user.Name)
+	}
 	return nil
 }
 
@@ -114,9 +133,10 @@ func main() {
 		registered: make(map[string]func(*state, command) error),
 	}
 
-	// 3. FIX: Register the new command!
 	cmds.register("login", handlerLogin)
 	cmds.register("register", handlerRegister)
+	cmds.register("reset", handlerReset)
+	cmds.register("users", handlerUsers)
 
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: cli <command> [args...]")
