@@ -6,6 +6,7 @@ import (
 	"gator/internal/cli"
 	"gator/internal/config"
 	"gator/internal/database"
+	"gator/internal/middleware"
 	"os"
 
 	_ "github.com/lib/pq"
@@ -36,10 +37,10 @@ func main() {
 	cmds.Register("reset", cli.HandlerReset)
 	cmds.Register("users", cli.HandlerUsers)
 	cmds.Register("agg", cli.HandlerAgg)
-	cmds.Register("addfeed", cli.HandlerAddFeed)
+	cmds.Register("addfeed", middleware.MiddlewareLoggedIn(cli.HandlerAddFeed))
 	cmds.Register("feeds", cli.HandlerFeeds)
-	cmds.Register("follow", cli.HandlerFollow)
-	cmds.Register("following", cli.HandlerFollowing)
+	cmds.Register("follow", middleware.MiddlewareLoggedIn(cli.HandlerFollow))
+	cmds.Register("following", middleware.MiddlewareLoggedIn(cli.HandlerFollowing))
 
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: cli <command> [args...]")

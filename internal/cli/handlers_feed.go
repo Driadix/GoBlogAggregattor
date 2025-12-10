@@ -9,18 +9,13 @@ import (
 	"github.com/google/uuid"
 )
 
-func HandlerAddFeed(s *State, cmd Command) error {
+func HandlerAddFeed(s *State, cmd Command, user database.User) error {
 	if len(cmd.Args) < 2 {
 		return fmt.Errorf("the addfeed command expects two arguments: <name> <url>")
 	}
 
 	feedName := cmd.Args[0]
 	feedURL := cmd.Args[1]
-
-	currentUser, err := s.DB.GetUser(context.Background(), s.Cfg.CurrentUserName)
-	if err != nil {
-		return fmt.Errorf("cant get a current user: %w", err)
-	}
 
 	newFeedID := uuid.New()
 
@@ -30,7 +25,7 @@ func HandlerAddFeed(s *State, cmd Command) error {
 		UpdatedAt: time.Now(),
 		Name:      feedName,
 		Url:       feedURL,
-		UserID:    currentUser.ID,
+		UserID:    user.ID,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create a new feed: %w", err)
@@ -41,7 +36,7 @@ func HandlerAddFeed(s *State, cmd Command) error {
 			ID:        uuid.New(),
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
-			UserID:    currentUser.ID,
+			UserID:    user.ID,
 			FeedID:    newFeedID,
 		},
 	)
@@ -70,7 +65,7 @@ func HandlerFeeds(s *State, _ Command) error {
 	return nil
 }
 
-func HandlerFollow(s *State, cmd Command) error {
+func HandlerFollow(s *State, cmd Command, user database.User) error {
 	if len(cmd.Args) < 1 {
 		return fmt.Errorf("the folllow command expects argument: <url>")
 	}
@@ -80,17 +75,12 @@ func HandlerFollow(s *State, cmd Command) error {
 		return fmt.Errorf("can't find feed with such url, err: %w", err)
 	}
 
-	currentUser, err := s.DB.GetUser(context.Background(), s.Cfg.CurrentUserName)
-	if err != nil {
-		return fmt.Errorf("cant get a current user: %w", err)
-	}
-
 	followedFeed, err := s.DB.CreateFeedFollow(context.Background(),
 		database.CreateFeedFollowParams{
 			ID:        uuid.New(),
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
-			UserID:    currentUser.ID,
+			UserID:    user.ID,
 			FeedID:    foundFeed.ID,
 		},
 	)
@@ -99,13 +89,8 @@ func HandlerFollow(s *State, cmd Command) error {
 	return nil
 }
 
-func HandlerFollowing(s *State, _ Command) error {
-	currentUser, err := s.DB.GetUser(context.Background(), s.Cfg.CurrentUserName)
-	if err != nil {
-		return fmt.Errorf("cant get a current user: %w", err)
-	}
-
-	followingFeeds, err := s.DB.GetFeedFollowsForUser(context.Background(), currentUser.ID)
+func HandlerFollowing(s *State, _ Command, user database.User) error {
+	followingFeeds, err := s.DB.GetFeedFollowsForUser(context.Background(), user.ID)
 	if err != nil {
 		return fmt.Errorf("error while fetching follows for user: %w", err)
 	}
