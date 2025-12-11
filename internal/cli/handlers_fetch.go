@@ -7,8 +7,12 @@ import (
 	"fmt"
 	"gator/internal/database"
 	"html"
+	"log"
 	"net/http"
 	"time"
+
+	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 type RSSFeed struct {
@@ -65,6 +69,27 @@ func fetchFeed(ctx context.Context, feedUrl string) (*RSSFeed, error) {
 	return &feed, nil
 }
 
+func parsePubDate(s string) time.Time {
+	layouts := []string{
+		time.RFC1123Z,
+		time.RFC1123,
+		time.RFC822Z,
+		time.RFC822,
+		time.RFC3339,
+		"Mon, 2 Jan 2006 15:04:05 MST",
+		"2006-01-02 15:04:05.999999999",
+		"2006-01-02 15:04:05",
+	}
+
+	for _, l := range layouts {
+		if t, err := time.Parse(l, s); err == nil {
+			return t
+		}
+	}
+
+	return time.Now()
+}
+
 func HandlerAgg(s *State, cmd Command) error {
 	if len(cmd.Args) < 1 {
 		return fmt.Errorf("usage: %s <time_between_reqs>", cmd.Name)
@@ -108,8 +133,27 @@ func scrapeFeeds(s *State) error {
 	}
 
 	for _, item := range rssFeed.Channel.Item {
-		fmt.Printf("Found post: %s\n", item.Title)
+		pubDate := parsePubDate(item.PubDate)
+
+		_, err = s.DB.CreatePost(context.Background(), database.CreatePostParams{
+			ID:          uuid.New(),
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+			Title:       item.Title,
+			Url:         item.Link,
+			Description: sql.NullString{String: item.Description, Valid: true},
+			PublishedAt: pubDate,
+			FeedID:      feed.ID,
+		})
+		if err != nil {
+			if pgErr, ok := err.(*pq.Error); ok && pgErr.Code == "23505" {
+				continue
+			}
+			log.Printf("couldn't create post for feed %s url %s: %v", feed.Name, item.Link, err)
+			continue
+		}
 	}
+
 	fmt.Printf("Feed %s collected, %v posts found\n", feed.Name, len(rssFeed.Channel.Item))
 
 	return nil
